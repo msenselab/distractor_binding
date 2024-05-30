@@ -188,7 +188,7 @@ ies_priming_dist_fig = sies_priming_dist_dat %>% ggplot(aes(x=tar_dist, y=mrre,
                                  fill=interaction(col_rep, shape_rep))) +
   geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
   geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
-  labs(x="Inter-trial position change", y="Response priming effect (error)", fill="Distractor features") + 
+  labs(x="Inter-trial position change", y="Response priming (ms)", fill="Distractor features") + 
   scale_fill_discrete( labels=c("Full change", "Shape change", "Color change", "Full repeat"))
 
 #ies_priming_dist_fig <- ies_priming_dist_dat  %>%  filter(shape_rep==col_rep) %>% mutate(feat_rep=shape_rep) %>% 

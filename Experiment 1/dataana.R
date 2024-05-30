@@ -128,40 +128,6 @@ ggsave("./figures/exp1.png", comb_fig, width = 10, height = 5)
 
 
 
-pj = position_dodge(width = 0.3)
-err_dat_fig <- serr_dat_probe %>% ggplot(aes(x=resp_rep, y=merr, color=col_rep, shape=shape_rep,
-                             group=interaction(col_rep, shape_rep))) + 
-  geom_point(position=pj, size = 3) + geom_line(position=pj) + theme_classic() + 
-  geom_errorbar(aes(ymin = merr - se_err, ymax = merr + se_err), width=0.2, position=pj) + 
-  labs(x="Response", y="Error rate", color = "Color", shape = "Shape") + 
-  scale_shape_discrete(labels=c("Change", "Rep.")) + 
-  scale_color_discrete(labels=c("Change", "Rep.")) + 
-  theme(legend.position = "bottom") + facet_wrap(~pos_fixed)
-
-spriming_err_dat <- priming_err_dat %>% summarize(mrre=mean(rre), 
-                                                srre=sd(rre)/sqrt(N-1))
-
-priming_err_dat %>%  filter(col_rep==shape_rep) %>% mutate(feat_rep=shape_rep) %>% ezANOVA(dv=rre, wid=participant,
-                                                            within=.(feat_rep, pos_fixed))
-
-pj = position_dodge(width = 0.9)
-err_prime_fig <- spriming_err_dat %>% ggplot(aes(x=pos_fixed, y=mrre, 
-                               fill=interaction(col_rep, shape_rep))) +
-  geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
-  geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
-  labs(x="Position", y="Response priming (error)", fill="Dist. features") + 
-  scale_fill_discrete(labels=c("Full C", "SC CR", "CC SR", "Full R"), 
-                      type = c("#2A9D8F", "#E9C46A", '#F4A261','#E76F51')) + 
-  theme(legend.position = "bottom")
-
-comb_fig <- plot_grid(rt_dat_fig, rt_prime_fig, err_dat_fig, err_prime_fig,
-                      nrow=2, ncol=2, rel_heights = c(1,0.8), 
-                      labels = c("A", "B", "C", "D"))
-
-ggsave("./figures/RT_ER.png", comb_fig, width = 10, height = 7)
-
-
-
 priming_ies_dat <- ies_dat_probe %>% select(-c(rt, err)) %>% spread(resp_rep, ies) %>%
   mutate(rre=1000*(Change - Repeat)) %>% select(-c(Change, Repeat))
 
