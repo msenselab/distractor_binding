@@ -2,6 +2,7 @@ library(tidyverse)
 library(cowplot)
 source("functions.R")
 
+# ---- 1. load raw data ----
 data_files <- c('data/01_BY_Partial repeat_2021_Oct_27_1751.csv', 
                 'data/02_HS_Partial repeat_2021_Nov_02_1208.csv',
                 'data/03__HAB_Partial repeat_2021_Oct_28_1353.csv',
@@ -49,7 +50,7 @@ data <- data %>% mutate(prime_correct =
                                         "Full repeat", 
                                         ifelse(col_rep=="Change" & shape_rep=="Change",
                                                "Full change", "Partial repeat")))
-
+# ---- 2. RT and error rate ----
 rt_dat_probe <- data %>% group_by(shape_rep, col_rep, resp_rep, pos_fixed, 
                             participant) %>%
   filter(PrimeProbe.thisN==1, prime_correct==1, probe_correct==1, key_resp.rt < 3, key_resp.rt > 0.2) %>%
@@ -64,24 +65,7 @@ priming_rt_dat <- rt_dat_probe %>% spread(resp_rep, rt) %>% mutate(rre=1000*(Cha
 spriming_rt_dat <- priming_rt_dat %>% summarize(mrre=mean(rre), 
                                               srre=sd(rre)/sqrt(N-1))
 
-pj = position_dodge(width = 0.3)
-rt_dat_fig <- srt_dat_probe %>% ggplot(aes(x=resp_rep, y=mRT, color=col_rep, shape=shape_rep,
-                             group=interaction(col_rep, shape_rep))) +
-  geom_point(position=pj, size=3) + geom_line(position=pj) + theme_classic() + 
-  geom_errorbar(aes(ymin=mRT-se_rt, ymax=mRT+se_rt),width=0.3, position=pj) +
-  labs(x="Response", y="Average RT (ms)", color="Color", shape="Shape")  +
-  theme(legend.position = "None") + facet_wrap(~pos_fixed)
-
-pj = position_dodge(width = 0.9)
-rt_prime_fig <- spriming_rt_dat %>% ggplot(aes(x=pos_fixed, y=mrre, 
-                               fill=interaction(col_rep, shape_rep))) +
-  geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
-  geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
-  labs(x="Position", y="Response priming effect (ms)", fill="Distractor features") + 
-  scale_fill_discrete(labels=c("Full change", "Shape change", "Color change", "Full repeat"),
-                      type = c("#2A9D8F", "#E9C46A", '#F4A261','#E76F51')) +
-  theme(legend.position = "None")
-
+# error rates
 err_dat_probe <- data %>% group_by(shape_rep, col_rep, resp_rep, pos_fixed, 
                                    participant) %>%
   filter(PrimeProbe.thisN==1, prime_correct==1) %>%
@@ -91,6 +75,58 @@ priming_err_dat <- err_dat_probe %>% spread(resp_rep, err) %>% mutate(rre=(Chang
   select(-c(Change, Repeat))
 
 serr_dat_probe <- err_dat_probe %>% summarize(merr=mean(err), se_err=sd(err)/sqrt(n()-1))
+
+# IES scores
+ies_dat_probe <- full_join(rt_dat_probe, err_dat_probe) %>% mutate(ies = rt/(1-err))
+sies_dat_probe <- ies_dat_probe %>% summarize(mIES=mean(ies)*1000, 
+                                            se_ies=sd(ies)/sqrt(N)*1000)
+
+priming_ies_dat <- ies_dat_probe %>% select(-c(rt, err)) %>% 
+  spread(resp_rep, ies) %>% mutate(rre=1000*(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+spriming_ies_dat <- priming_ies_dat %>% summarize(mrre=mean(rre), 
+                                                srre=sd(rre)/sqrt(N-1))
+
+# ---- 3. ANOVA  ----
+ies_dat_probe %>% ezANOVA(dv=ies, wid=participant, within=.(shape_rep, col_rep, pos_fixed, resp_rep))
+
+priming_ies_dat %>% ezANOVA(dv=rre, wid=participant, within=.(shape_rep, col_rep, pos_fixed))
+
+# ---- 4. Figures ----
+
+pj3 = position_dodge(width = 0.3)
+ies_dat_fig <- sies_dat_probe %>% ggplot(aes(x=resp_rep, y=mIES, color=interaction(col_rep, shape_rep),
+                             group=interaction(col_rep, shape_rep))) +
+  geom_point(position=pj3, size=3) + geom_line(position=pj3) + theme_classic() + 
+  geom_errorbar(aes(ymin=mIES-se_ies, ymax=mIES+se_ies),width=0.3, position=pj3) +
+  scale_color_discrete(labels=c("Full change", "Shape change", "Color change", "Full repeat"),
+                      type = c("#2A9D8F", "#E9C46A", '#F4A261','#E76F51')) +
+  labs(x="Response", y="Mean IES (ms)", color="Dist. features")  +
+  theme(legend.position = "bottom", strip.background= element_blank()) + facet_wrap(~pos_fixed)
+ies_dat_fig
+
+pj = position_dodge(width = 0.9)
+ies_prime_fig <- spriming_ies_dat %>% ggplot(aes(x=pos_fixed, y=mrre, 
+                               fill=interaction(col_rep, shape_rep))) +
+  geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
+  geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
+  labs(x="Position", y="Response priming (ms)", fill="Dist. features") + 
+  scale_fill_discrete(labels=c("F.C.", "S.C.", "C.C.", "F.R."),
+                      type = c("#2A9D8F", "#E9C46A", '#F4A261','#E76F51')) +
+  theme(legend.position = "bottom")
+
+ies_prime_fig
+
+comb_fig <- plot_grid(ies_dat_fig, ies_prime_fig,
+                      ncol=2, rel_widths = c(3,2), 
+                      labels = c("a", "b"))
+comb_fig
+
+ggsave("./figures/exp1.png", comb_fig, width = 10, height = 5)
+
+
+
 
 pj = position_dodge(width = 0.3)
 err_dat_fig <- serr_dat_probe %>% ggplot(aes(x=resp_rep, y=merr, color=col_rep, shape=shape_rep,
@@ -125,7 +161,6 @@ comb_fig <- plot_grid(rt_dat_fig, rt_prime_fig, err_dat_fig, err_prime_fig,
 ggsave("./figures/RT_ER.png", comb_fig, width = 10, height = 7)
 
 
-ies_dat_probe <- full_join(rt_dat_probe, err_dat_probe) %>% mutate(ies = rt/(1-err))
 
 priming_ies_dat <- ies_dat_probe %>% select(-c(rt, err)) %>% spread(resp_rep, ies) %>%
   mutate(rre=1000*(Change - Repeat)) %>% select(-c(Change, Repeat))

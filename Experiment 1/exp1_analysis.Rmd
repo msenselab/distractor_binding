@@ -1,0 +1,214 @@
+---
+title: "Analysis of Experiment 1"
+output: html_notebook
+---
+
+In Experiment 1, participants searched for a green ellipse target and indicated its orientation - either clockwise or counter-clockwise. The target’s shape and color remained consistent throughout all trials, while the distractors varied shape and color, independent of the response feature of the target. According to the distractor-response binding (DRB), we would expect an interaction between the distractor feature and the response, which would closely resemble an intertrial priming effect.
+
+```{r setup_load_data, echo=FALSE}
+library(knitr)
+knitr::opts_chunk$set(digits = 3)
+library(tidyverse)
+library(cowplot)
+options(digits = 3)
+source("functions.R")
+
+# ---- 1. load raw data ----
+data_files <- c('data/01_BY_Partial repeat_2021_Oct_27_1751.csv', 
+                'data/02_HS_Partial repeat_2021_Nov_02_1208.csv',
+                'data/03__HAB_Partial repeat_2021_Oct_28_1353.csv',
+                'data/04_Partial repeat_2021_Oct_28_1717.csv',
+                'data/05_EA_Partial repeat_2021_Oct_29_1343.csv',
+                'data/06_GA_Partial repeat_2021_Nov_11_1413.csv',
+                'data/07_NS_Partial repeat_2021_Oct_29_1659.csv',
+                'data/08_AB_Partial repeat_2021_Oct_30_1308.csv',
+                'data/09_BC_Partial repeat_2021_Oct_30_1521.csv',
+                'data/10_MI_Partial repeat_2021_Nov_01_1029.csv',
+                'data/11_YA_Partial repeat_2021_Nov_12_1341.csv',
+                'data/12_MZ_Partial repeat_2021_Nov_04_0935.csv',
+                'data/13_NF_Partial repeat_2021_Nov_02_1555.csv',
+                'data/14_AE_Partial repeat_2021_Nov_02_1743.csv',
+                'data/15_SS_Partial repeat_2021_Nov_03_1011.csv',
+                'data/16_IB_Partial repeat_2021_Nov_03_1359.csv',
+                'data/17_KH_Partial repeat_2021_Nov_03_1614.csv',
+                'data/18_KR_Partial repeat_2021_Nov_04_1417.csv',
+                'data/19_JM_Partial repeat_2021_Nov_04_1653.csv',
+                'data/20_YC_Partial repeat_2021_Nov_05_0950.csv',
+                'data/21_SU_Partial repeat_2021_Nov_05_1142.csv',
+                'data/22_XHM_Partial repeat_2021_Nov_05_1343.csv',
+                'data/23_PP_Partial repeat_2021_Nov_05_1528.csv',
+                'data/24_UA_Partial repeat_2021_Nov_05_1732.csv')
+
+data <- reduce(lapply(lapply(data_files, readData),data.frame), rbind)
+
+N <- length(unique(data$participant))
+
+dists <- c(0, 1:4, 3:1)
+
+data$col_rep <- factor(data$col_rep, levels=c(0,1), labels=c("Change", "Repeat"))
+data$shape_rep <- factor(data$shape_rep, levels=c(0,1), labels=c("Change", "Repeat"))
+data$resp_rep <- factor(data$resp_rep, levels=c(0,1), labels=c("Change", "Repeat"))
+data$pos_fixed <- factor(data$pos_fixed, levels=c(0,1), 
+                         labels=c("Random", "Fixed"))
+
+data <- data %>% mutate(prime_correct = 
+                          ifelse(PrimeProbe.thisN == 0, key_resp.corr, 
+                                 lag(key_resp.corr)), 
+                        probe_correct = 
+                          ifelse(PrimeProbe.thisN == 1, key_resp.corr, 
+                                 lead(key_resp.corr)), 
+                        dist_rep=ifelse(col_rep=="Repeat" & shape_rep == "Repeat",
+                                        "Full repeat", 
+                                        ifelse(col_rep=="Change" & shape_rep=="Change",
+                                               "Full change", "Partial repeat")))
+# ---- 2. RT and error rate ----
+rt_dat_probe <- data %>% group_by(shape_rep, col_rep, resp_rep, pos_fixed, 
+                            participant) %>%
+  filter(PrimeProbe.thisN==1, prime_correct==1, probe_correct==1, key_resp.rt < 3, key_resp.rt > 0.2) %>%
+  summarize(rt=mean(key_resp.rt)) 
+
+srt_dat_probe <- rt_dat_probe %>% summarize(mRT=mean(rt)*1000, 
+                                            se_rt=sd(rt)/sqrt(N-1)*1000)
+
+priming_rt_dat <- rt_dat_probe %>% spread(resp_rep, rt) %>% mutate(rre=1000*(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+spriming_rt_dat <- priming_rt_dat %>% summarize(mrre=mean(rre), 
+                                              srre=sd(rre)/sqrt(N-1))
+
+# error rates
+err_dat_probe <- data %>% group_by(shape_rep, col_rep, resp_rep, pos_fixed, 
+                                   participant) %>%
+  filter(PrimeProbe.thisN==1, prime_correct==1) %>%
+  summarize(err=1-mean(key_resp.corr)) 
+
+priming_err_dat <- err_dat_probe %>% spread(resp_rep, err) %>% mutate(rre=(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+serr_dat_probe <- err_dat_probe %>% summarize(merr=mean(err), se_err=sd(err)/sqrt(n()-1))
+
+# IES scores
+ies_dat_probe <- full_join(rt_dat_probe, err_dat_probe) %>% mutate(ies = rt/(1-err))
+sies_dat_probe <- ies_dat_probe %>% summarize(mIES=mean(ies)*1000, 
+                                            se_ies=sd(ies)/sqrt(N)*1000)
+
+priming_ies_dat <- ies_dat_probe %>% select(-c(rt, err)) %>% 
+  spread(resp_rep, ies) %>% mutate(rre=1000*(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+spriming_ies_dat <- priming_ies_dat %>% summarize(mrre=mean(rre), 
+                                                srre=sd(rre)/sqrt(N-1))
+```
+After loading the data, we examin the effects using ANOVA. 
+
+```{r anova_ies, digits = 3}
+ies_dat_probe %>% ezANOVA(dv=ies, wid=participant, within=.(shape_rep, col_rep, pos_fixed, resp_rep)) -> anova_ies
+kable(anova_ies$ANOVA)
+```
+```{r}
+ies_dat_probe %>% ezStats(dv=ies, wid=participant, within=.(resp_rep)) 
+```
+```{r}
+ies_dat_probe %>% ezStats(dv=ies, wid=participant, within=.(pos_fixed)) 
+```
+
+As we can see, the main effects of position, response repetition are significant. In addition, the interaction between shape repetition and response repetition is significant, as well as the response repetition and position interaction. 
+
+```{r}
+ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = shape_rep, within=.(resp_rep, shape_rep)) + theme_classic() +
+  theme(legend.position = 'bottom') + 
+    labs(x = "Response repetition", y = "IES (ms)", color = "Shape repetition", linetype = "Shape repetition", shape = "Shape repetition") -> fig_interaction1
+fig_interaction1
+
+```
+```{r}
+ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = pos_fixed, within=.(resp_rep, pos_fixed)) + theme_classic() +
+  theme(legend.position = 'bottom') + 
+    labs(x = "Response repetition", y = "IES (ms)", color = "Target Position", linetype = "Target Position", shape = "Target Position") -> fig_interaction2
+fig_interaction2
+```
+
+Combine two interaction plots into one figure. 
+
+```{r}
+plot_grid(fig_interaction1, fig_interaction2, ncol=2) -> fig_interaction
+#save the plot
+ggsave("figures/interaction_plot_ies.png", fig_interaction, width=8, height=4)
+fig_interaction
+```
+
+# ---- distance effect ----
+
+Given the target position played a critical role in the response priming effect, we further investigated the target distance between the prime and the probe pair in the random target session, which showed how the prime-probe target distance influences the response priming. 
+
+```{r}
+
+dist_dat <- data %>% mutate(tar_dist = 
+                              dists[abs(prime_tar_pos - probe_tar_pos)+1]) %>%
+  group_by(tar_dist, shape_rep, col_rep, resp_rep, participant) %>% 
+  filter(PrimeProbe.thisN==1, prime_correct==1, probe_correct==1, 
+         pos_fixed=="Random", key_resp.rt < 3) %>%
+  summarize(rt=mean(key_resp.rt))
+
+sdist_dat <- dist_dat %>% summarize(mRT=mean(rt)*1000)
+
+dist_priming_dat <- dist_dat %>% spread(resp_rep, rt) %>% mutate(rre=(Change - Repeat)*1000) %>%
+  select(-c(Change, Repeat))
+
+sdist_priming_dat <- dist_priming_dat %>% summarize(mrre=mean(rre), 
+                                                  srre=sd(rre)/sqrt(N-1))
+
+dist_dat_err <- data %>% mutate(tar_dist = 
+                              dists[abs(prime_tar_pos - probe_tar_pos)+1]) %>%
+  group_by(tar_dist, shape_rep, col_rep, resp_rep, participant) %>% 
+  filter(PrimeProbe.thisN==1, prime_correct==1,
+         pos_fixed=="Random") %>%
+  summarize(err=mean(1-key_resp.corr))
+
+sdist_dat_err <- dist_dat_err %>% summarize(merr=mean(err))
+
+dist_priming_err_dat <- dist_dat_err %>% spread(resp_rep, err) %>% mutate(rre=(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+sdist_priming_err_dat<- dist_priming_err_dat %>% summarize(mrre=mean(rre), 
+                                                    srre=sd(rre)/sqrt(N-1))
+
+ies_dat_dist <- full_join(dist_dat, dist_dat_err) %>% mutate(ies = rt*1000/(1-err))
+
+ies_priming_dist_dat <- ies_dat_dist %>% select(-c(rt, err)) %>% spread(resp_rep, ies) %>% mutate(rre=(Change - Repeat)) %>%
+  select(-c(Change, Repeat))
+
+ies_priming_dist_dat$tar_dist <- factor(ies_priming_dist_dat$tar_dist)
+sies_priming_dist_dat <- ies_priming_dist_dat %>% summarize(mrre=mean(rre), 
+                                                          srre=sd(rre)/sqrt(N-1))
+
+
+pj = position_dodge(width = 0.9)
+ies_priming_dist_fig = sies_priming_dist_dat %>% ggplot(aes(x=tar_dist, y=mrre, 
+                                 fill=interaction(col_rep, shape_rep))) +
+  geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
+  geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
+  labs(x="Inter-trial position change", y="Response priming effect (error)", fill="Distractor features") + 
+  scale_fill_discrete( labels=c("Full change", "Shape change", "Color change", "Full repeat"))
+
+#ies_priming_dist_fig <- ies_priming_dist_dat  %>%  filter(shape_rep==col_rep) %>% mutate(feat_rep=shape_rep) %>% 
+#  group_by(feat_rep, tar_dist) %>% summarize(mrre=mean(rre), srre=sd(rre)/sqrt(N-1)) %>%
+#  ggplot(aes(x=tar_dist, y=mrre, fill=feat_rep)) +
+#  geom_bar(stat="identity", position=pj, color="black", width=0.8) + theme_classic() + 
+#  geom_errorbar(aes(ymin=mrre-srre, ymax=mrre+srre), width=0.3, position=pj) +
+#  labs(x="Inter-trial position change", y="Response priming effect (ms)", 
+#       fill="Distractor features") + 
+#  scale_fill_discrete(labels=c("Full change", "Full repeat"), type=c("#2A9D8F", "#E76F51")) + 
+#  theme(legend.position = "bottom")
+
+ies_priming_dist_fig
+
+ggsave('figures/ies_priming_dist_e1.png', ies_priming_dist_fig, width=8, height=3)
+
+```
+```{r}
+# ezANOVA on ies_priming_dist_dat
+ies_priming_dist_dat %>% ezANOVA(dv=rre, wid=participant, within=.(tar_dist, shape_rep, col_rep)) -> anova_ies_dist
+kable(anova_ies_dist$ANOVA)
+```
+
