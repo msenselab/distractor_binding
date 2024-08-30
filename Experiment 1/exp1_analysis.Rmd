@@ -65,7 +65,7 @@ data <- data %>% mutate(prime_correct =
 rt_dat_probe <- data %>% group_by(shape_rep, col_rep, resp_rep, pos_fixed, 
                             participant) %>%
   filter(PrimeProbe.thisN==1, prime_correct==1, probe_correct==1, key_resp.rt < 3, key_resp.rt > 0.2) %>%
-  summarize(rt=mean(key_resp.rt)) 
+  summarize(rt=mean(key_resp.rt)*1000) 
 
 srt_dat_probe <- rt_dat_probe %>% summarize(mRT=mean(rt)*1000, 
                                             se_rt=sd(rt)/sqrt(N-1)*1000)
@@ -115,15 +115,17 @@ ies_dat_probe %>% ezStats(dv=ies, wid=participant, within=.(pos_fixed))
 As we can see, the main effects of position, response repetition are significant. In addition, the interaction between shape repetition and response repetition is significant, as well as the response repetition and position interaction. 
 
 ```{r}
-ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = shape_rep, within=.(resp_rep, shape_rep)) + theme_classic() +
+ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = shape_rep, within=.(resp_rep, shape_rep), 
+                         bar_width = 0.1) + theme_classic() + geom_point(size=2, aes(color = shape_rep)) +
   theme(legend.position = 'bottom') + 
     labs(x = "Response repetition", y = "IES (ms)", color = "Shape repetition", linetype = "Shape repetition", shape = "Shape repetition") -> fig_interaction1
 fig_interaction1
 
 ```
 ```{r}
-ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = pos_fixed, within=.(resp_rep, pos_fixed)) + theme_classic() +
-  theme(legend.position = 'bottom') + 
+ies_dat_probe %>% ezPlot(dv=ies, wid=participant, x= resp_rep, split = pos_fixed, within=.(resp_rep, pos_fixed), 
+                         bar_width = 0.1) + theme_classic()  + geom_point(size=2, aes(color = pos_fixed)) +
+  theme(legend.position = 'bottom') +
     labs(x = "Response repetition", y = "IES (ms)", color = "Target Position", linetype = "Target Position", shape = "Target Position") -> fig_interaction2
 fig_interaction2
 ```

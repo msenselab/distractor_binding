@@ -143,6 +143,23 @@ spriming_err_dat %>% ggplot(aes(x=pos_fixed, y=mrre,
   labs(x="Position", y="Response priming effect (error)", fill="Distractor features") + 
   scale_fill_discrete( labels=c("Full change", "Shape change", "Color change", "Full repeat"))
 
+
+sies_dat_probe <- ies_dat_probe %>% summarize(mies = mean(ies)*1000, se_ies = sd(ies*1000)/sqrt(n()))
+
+pj = position_dodge(width = 0.3)
+ies_main_fig <- sies_dat_probe %>% ggplot(aes(x=resp_rep, y=mies, color=interaction(col_rep, shape_rep), group= interaction(col_rep, shape_rep))) + 
+  geom_point(position=pj, size=3) + geom_line(position=pj) + theme_classic() + 
+  facet_wrap(~pos_fixed) + theme(legend.position = "bottom", strip.background = element_blank()) +
+  geom_errorbar(aes(ymin = mies - se_ies, ymax = mies + se_ies), width=0.2, position=pj) + 
+  scale_color_discrete(labels=c("Full Change", "Shape change", "Color change", "Full repeat"), type=c("#2A9D8F", "#E9C46A", '#F4A261','#E76F51')) +
+  labs(x="Response", y="Mean IES (ms)", color = "Color", shape = "Shape")
+
+
+
+exp2_main_fig <- plot_grid(ies_main_fig, ies_prime_full_fig, labels = c("a", "b"))
+ggsave('figures/e2_main_results.png', exp2_main_fig, width=10.5, height=5)
+
+
 # ---- Feature priming ----
 
 dist_feat_prime_ies <- ies_dat_probe %>%
